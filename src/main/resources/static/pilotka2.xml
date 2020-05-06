@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+    <element>
+        <id>4</id>
+        <file-name>test2.txt</file-name>
+    </element>
+    <element>
+        <id>5</id>
+        <file-name>test2.bin</file-name>
+    </element>
+    <element>
+        <id>6</id>
+        <file-name>test2.jpg</file-name>
+    </element>
+</root>

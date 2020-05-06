@@ -9,6 +9,8 @@ public class FileWriter implements ItemWriter<Config> {
 
     @Override
     public void write(List<? extends Config> list) throws Exception {
-
+list.forEach(element ->{
+    System.out.println("Writter"+element.toString());
+});
     }
 }
