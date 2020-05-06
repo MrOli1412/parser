@@ -38,7 +38,7 @@ public class MoveFileTasklet implements Tasklet {
                 String[] filename = file.split("/");
                 try {
                     FileUtils.moveFile(FileUtils.getFile(path),
-                            FileUtils.getFile(resourcesPath+filename[6]));
+                            FileUtils.getFile(resourcesPath+filename[3]));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }

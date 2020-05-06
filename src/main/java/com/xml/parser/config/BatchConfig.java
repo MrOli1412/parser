@@ -122,7 +122,7 @@ public class BatchConfig {
     @Bean
     Job job() throws Exception {
         return jobBuilderFactory.get("job").incrementer(new RunIdIncrementer()).listener(new ConfigJobListener())
-                .start(masterStep()).on("COMPLETE").to(moveFiles())
+                .start(masterStep()).on("COMPLETED").to(moveFiles())
                 .from(masterStep()).on("UNKNOWN").to(moveErrorFiles()).end().build();
     }
 
