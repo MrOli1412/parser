@@ -113,8 +113,8 @@ public class BatchConfig {
     @Bean
     public TaskExecutor taskExecutor() {
         ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
-        taskExecutor.setMaxPoolSize(5);
-        taskExecutor.setCorePoolSize(5);
+        taskExecutor.setMaxPoolSize(1);
+        taskExecutor.setCorePoolSize(1);
         taskExecutor.afterPropertiesSet();
         return taskExecutor;
     }
@@ -196,7 +196,7 @@ public class BatchConfig {
         MultiResourcePartitioner partitioner = new MultiResourcePartitioner();
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         partitioner.setResources(resolver.getResources("file:" + resourcesPath  + fileType));
-        partitioner.partition(2);
+        partitioner.partition(0);
         System.out.println("--------partitioner()---end -No of files--->" + resolver.getResources("file:" + resourcesPath  + fileType).length);
         return partitioner;
     }
