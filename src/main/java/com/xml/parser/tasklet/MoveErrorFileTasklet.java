@@ -41,7 +41,7 @@ public class MoveErrorFileTasklet implements Tasklet, InitializingBean {
                 String path = file.replace("file:/", "");
                 String[] filename = file.split("/");
                 FileUtils.moveFile(FileUtils.getFile(path),
-                        FileUtils.getFile(resourcesPath + filename[6]));
+                        FileUtils.getFile(resourcesPath + filename[4]));
             }
         }
 

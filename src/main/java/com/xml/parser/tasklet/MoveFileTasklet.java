@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 public class MoveFileTasklet implements Tasklet {
+
     private String resourcesPath;
 
     public String getResourcesPath() {
@@ -38,7 +39,7 @@ public class MoveFileTasklet implements Tasklet {
                 String[] filename = file.split("/");
                 try {
                     FileUtils.moveFile(FileUtils.getFile(path),
-                            FileUtils.getFile(resourcesPath+filename[3]));
+                            FileUtils.getFile(resourcesPath+filename[4]));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }

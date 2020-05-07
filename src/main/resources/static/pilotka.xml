@@ -5,14 +5,4 @@
         <file-name>test.txt</file-name>
         <status></status>
     </element>
-    <element>
-        <id>2</id>
-        <file-name>test.bin</file-name>
-        <status></status>
-    </element>
-    <element>
-        <id>3</id>
-        <file-name>test.jpg</file-name>
-        <status></status>
-    </element>
 </root>

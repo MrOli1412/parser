@@ -1,5 +1,7 @@
 package com.xml.parser.controller;
 
+import com.xml.parser.model.XmlFile;
+import com.xml.parser.repository.XmlFileRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
@@ -19,6 +21,7 @@ public class JobLauncherController {
     @Autowired
     Job job;
 
+
     @RequestMapping("/launchjob")
     public String handle() throws Exception {
 
@@ -27,6 +30,7 @@ public class JobLauncherController {
             JobParameters jobParameters = new JobParametersBuilder().addLong("time", System.currentTimeMillis())
                     .toJobParameters();
             jobLauncher.run(job, jobParameters);
+
         } catch (Exception e) {
             logger.info(e.getMessage());
         }

@@ -3,44 +3,46 @@ package com.xml.parser.config;
 
 import com.xml.parser.listeners.ConfigJobListener;
 import com.xml.parser.listeners.ConfigStepListener;
+import com.xml.parser.listeners.FileProcessorListener;
+import com.xml.parser.listeners.FileWriterListener;
 import com.xml.parser.model.Config;
+import com.xml.parser.step.FileDbWriter;
 import com.xml.parser.step.FileProcessor;
-import com.xml.parser.step.FileReader;
 import com.xml.parser.step.FileWriter;
 import com.xml.parser.tasklet.MoveErrorFileTasklet;
 import com.xml.parser.tasklet.MoveFileTasklet;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.StepListener;
 import org.springframework.batch.core.configuration.annotation.*;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.partition.support.MultiResourcePartitioner;
 import org.springframework.batch.core.partition.support.Partitioner;
-import org.springframework.batch.item.NonTransientResourceException;
-import org.springframework.batch.item.ParseException;
-import org.springframework.batch.item.UnexpectedInputException;
+import org.springframework.batch.item.*;
+import org.springframework.batch.item.support.CompositeItemWriter;
 import org.springframework.batch.item.xml.StaxEventItemReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
-import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 
-import javax.annotation.processing.Processor;
-import java.io.File;
 import java.io.IOException;
-import java.io.Reader;
-import java.io.Writer;
 import java.net.MalformedURLException;
+import java.util.ArrayList;
+import java.util.List;
 
 
 @Configuration
 @EnableBatchProcessing
+@EnableTransactionManagement
 public class BatchConfig {
 
     @Value("${files.path}")
@@ -59,14 +61,16 @@ public class BatchConfig {
 
     public final StepBuilderFactory stepBuilderFactory;
 
-    final
-    FileReader fileReader;
 
     @Autowired
-    public BatchConfig(JobBuilderFactory jobBuilderFactory, StepBuilderFactory stepBuilderFactory, FileReader fileReader) {
+    public BatchConfig(JobBuilderFactory jobBuilderFactory, StepBuilderFactory stepBuilderFactory) {
         this.jobBuilderFactory = jobBuilderFactory;
         this.stepBuilderFactory = stepBuilderFactory;
-        this.fileReader = fileReader;
+    }
+
+    @Bean
+    PlatformTransactionManager platformTransactionManager() {
+        return new JpaTransactionManager();
     }
 
 
@@ -122,39 +126,50 @@ public class BatchConfig {
     @Bean
     Job job() throws Exception {
         return jobBuilderFactory.get("job").incrementer(new RunIdIncrementer()).listener(new ConfigJobListener())
-                .start(masterStep()).on("COMPLETED").to(moveFiles())
-                .from(masterStep()).on("UNKNOWN").to(moveErrorFiles()).end().build();
+                .start(masterStep(platformTransactionManager())).on("COMPLETED").to(moveFiles())
+                .from(masterStep(platformTransactionManager())).on("UNKNOWN").to(moveErrorFiles()).end().build();
     }
-
 
 
     @Bean
-    public Step masterStep() throws Exception {
-        return stepBuilderFactory.get("masterStep").partitioner(slaveStep()).partitioner("partition", partitioner())
-                .taskExecutor(taskExecutor()).listener(new ConfigStepListener()).build();
+    public Step masterStep(PlatformTransactionManager platformTransactionManager) throws Exception {
+        return stepBuilderFactory.get("masterStep").transactionManager(platformTransactionManager).partitioner(slaveStep(null)).partitioner("partition", partitioner())
+                .taskExecutor(taskExecutor()).listener(stepListener()).build();
     }
 
     @Bean
-    public Step slaveStep() throws Exception {
-        return stepBuilderFactory.get("slaveStep").<Config, Config>chunk(1)
-                .reader(reader(null)).processor(processor(null, null)).writer(new FileWriter()).build();
+    public Step slaveStep(PlatformTransactionManager platformTransactionManager) throws Exception {
+        return stepBuilderFactory.get("slaveStep").transactionManager(platformTransactionManager).<Config, Config>chunk(1)
+                .reader(reader(null)).processor(processor(null, null)).listener(new FileProcessorListener()).writer(writer(null, null)).listener(new FileWriterListener()).faultTolerant().skip(Exception.class).build();
     }
+
+    @Bean
+    @StepScope
+    StepListener stepListener(){
+        return new ConfigStepListener();
+    }
+
+//    @Bean
+//    public Step movingFilesStep(PlatformTransactionManager platformTransactionManager){
+//
+//    }
 
     @Bean
     protected Step moveFiles() {
         MoveFileTasklet moveFilesTasklet = new MoveFileTasklet();
-        try{
-            moveFilesTasklet.setResourcesPath(sucessPath);
-            moveFilesTasklet.setResources(new PathMatchingResourcePatternResolver().getResources("file:" + sucessPath + fileType));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            moveFilesTasklet.setResourcesPath(sucessPath);
+//            moveFilesTasklet.setResources(new PathMatchingResourcePatternResolver().getResources("file:" + sucessPath + fileType));
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
         return stepBuilderFactory.get("moveFiles").tasklet(moveFilesTasklet).build();
     }
+
     @Bean
     protected Step moveErrorFiles() {
         MoveErrorFileTasklet moveErrorFileTasklet = new MoveErrorFileTasklet();
-        try{
+        try {
             moveErrorFileTasklet.setResourcesPath(errorPath);
             moveErrorFileTasklet.setResources(new PathMatchingResourcePatternResolver().getResources("file:" + errorPath + fileType));
         } catch (IOException e) {
@@ -173,9 +188,8 @@ public class BatchConfig {
 
         Jaxb2Marshaller marshaller = new Jaxb2Marshaller();
         marshaller.setClassesToBeBound(Config.class);
-
         reader.setUnmarshaller(marshaller);
-        System.out.println("In");
+
         return reader;
     }
 
@@ -191,13 +205,36 @@ public class BatchConfig {
     }
 
     @Bean
+    @StepScope
+    public CompositeItemWriter<Config> writer(@Value("#{stepExecutionContext['fileName']}") String file, @Value("#{stepExecution.jobExecution.id}") String jobId) throws Exception {
+        List<ItemWriter<? super Config>> writers = new ArrayList<>();
+        FileWriter fileWriter = new FileWriter();
+        fileWriter.setProcessingFileName(file);
+        fileWriter.setProcessingJobid(jobId);
+
+
+        writers.add(fileDbWriter());
+        writers.add(fileWriter);
+        CompositeItemWriter<Config> configCompositeItemWriter = new CompositeItemWriter<>();
+        configCompositeItemWriter.setDelegates(writers);
+        configCompositeItemWriter.afterPropertiesSet();
+        return configCompositeItemWriter;
+    }
+
+    @Bean
+    @StepScope
+    ItemWriter<Config> fileDbWriter() {
+        return new FileDbWriter();
+    }
+
+    @Bean
     @JobScope
     public Partitioner partitioner() throws Exception {
         MultiResourcePartitioner partitioner = new MultiResourcePartitioner();
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        partitioner.setResources(resolver.getResources("file:" + resourcesPath  + fileType));
-        partitioner.partition(0);
-        System.out.println("--------partitioner()---end -No of files--->" + resolver.getResources("file:" + resourcesPath  + fileType).length);
+        partitioner.setResources(resolver.getResources("file:" + resourcesPath + fileType));
+        partitioner.partition(1);
+        System.out.println("--------partitioner()---end -No of files--->" + resolver.getResources("file:" + resourcesPath + fileType).length);
         return partitioner;
     }
 
